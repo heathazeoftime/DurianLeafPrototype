@@ -54,15 +54,10 @@ h1 {
     box-shadow: 0 0 20px rgba(0,0,0,0.2);
 }
 
-/* Live card & History card width */
-.live-card {
-    width: 360px;
-}
-.history-card {
-    width: 360px;
-}
+.live-card { width: 360px; }
+.history-card { width: 360px; }
 
-/* ========== LIVE IMAGE + BBOX ========== */
+/* IMAGE + BBOX */
 #imageContainer {
     width: 320px;
     height: 240px;
@@ -72,13 +67,11 @@ h1 {
     border: 1px solid #30363d;
     background: #0d1117;
 }
-
 #cameraImage {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-
 #bbox {
     position: absolute;
     border: 3px solid #ff4d4d;
@@ -87,13 +80,12 @@ h1 {
     transition: all 0.15s ease-in-out;
 }
 
-/* ========== INFO PANEL ========== */
+/* INFO PANEL */
 #infoPanel {
     margin-top: 12px;
     line-height: 1.6em;
     font-size: 15px;
 }
-
 .labelTag {
     display: inline-block;
     background: #1f6feb;
@@ -101,7 +93,6 @@ h1 {
     border-radius: 6px;
     font-weight: 600;
 }
-
 .statusBadge {
     display: inline-block;
     width: 10px;
@@ -109,26 +100,17 @@ h1 {
     border-radius: 50%;
     margin-left: 6px;
 }
-
 #statusConnected { background: #2ea043; }
-#statusWaiting   { background: #d29922; }
-
+#statusWaiting { background: #d29922; }
 .hidden { display: none; }
 
-/* ========== HISTORY LIST ========== */
+/* HISTORY */
 #historyList {
     margin-top: 8px;
     max-height: 320px;
     overflow-y: auto;
     padding-right: 4px;
 }
-
-.history-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
 .history-item {
     display: flex;
     align-items: center;
@@ -140,12 +122,10 @@ h1 {
     cursor: pointer;
     transition: background 0.15s ease-in-out, transform 0.05s;
 }
-
 .history-item:hover {
     background: #21262d;
     transform: translateY(-1px);
 }
-
 .history-thumb {
     width: 64px;
     height: 48px;
@@ -154,25 +134,24 @@ h1 {
     margin-right: 8px;
     border: 1px solid #30363d;
 }
-
 .history-meta {
     display: flex;
     flex-direction: column;
     font-size: 13px;
 }
+.history-label { font-weight: 600; }
+.history-confidence { color: #8b949e; }
+.history-time { color: #6e7681; font-size: 12px; }
 
-.history-label {
+#clearHistoryBtn {
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    background: #da3633;
+    border: 1px solid #f85149;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
     font-weight: 600;
-    color: #e6edf3;
-}
-
-.history-confidence {
-    color: #8b949e;
-}
-
-.history-time {
-    color: #6e7681;
-    font-size: 12px;
 }
 </style>
 </head>
@@ -183,11 +162,12 @@ h1 {
 <div class="subtitle">Live detection + history of captured leaves</div>
 
 <div class="main-layout">
-    <!-- ========== LIVE VIEW CARD ========== -->
+
+    <!-- LIVE VIEW -->
     <div class="card live-card">
         <h3 style="margin-top:0; margin-bottom:8px;">Live View</h3>
         <div id="imageContainer">
-            <img id="cameraImage" src="" alt="Waiting for image...">
+            <img id="cameraImage" src="">
             <div id="bbox"></div>
         </div>
 
@@ -206,20 +186,21 @@ h1 {
         </div>
     </div>
 
-    <!-- ========== HISTORY CARD ========== -->
+    <!-- HISTORY -->
     <div class="card history-card">
         <div class="history-title">History (latest detections)</div>
-        <div id="historyList">
-            <!-- Items will be added here dynamically -->
-        </div>
+
+        <button id="clearHistoryBtn">Clear History</button>
+
+        <div id="historyList"></div>
     </div>
+
 </div>
 
 <script>
 // ===================
-// 1. FIREBASE CONFIG
+// FIREBASE CONFIG
 // ===================
-// GANTI dengan config project-mu sendiri
 const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "duriandiseasemonitoring.firebaseapp.com",
@@ -229,26 +210,25 @@ const firebaseConfig = {
     messagingSenderId: "1234567890",
     appId: "1:1234567890:web:abcdef123456"
 };
-
 firebase.initializeApp(firebaseConfig);
 
-// Reference path
+// Refs
 const latestRef  = firebase.database().ref("detections/latest");
 const historyRef = firebase.database().ref("detections/history").limitToLast(20);
 
 // UI elements
-const imgEl    = document.getElementById("cameraImage");
-const bboxEl   = document.getElementById("bbox");
-const labelEl  = document.getElementById("label");
-const confEl   = document.getElementById("confidence");
-const timeEl   = document.getElementById("timestamp");
-const statusWaiting   = document.getElementById("statusWaiting");
+const imgEl = document.getElementById("cameraImage");
+const bboxEl = document.getElementById("bbox");
+const labelEl = document.getElementById("label");
+const confEl = document.getElementById("confidence");
+const timeEl = document.getElementById("timestamp");
+const statusWaiting = document.getElementById("statusWaiting");
 const statusConnected = document.getElementById("statusConnected");
-const historyListEl   = document.getElementById("historyList");
+const historyListEl = document.getElementById("historyList");
 
-// Helper → status badge
-function setStatus(connected) {
-    if (connected) {
+// Status badge
+function setStatus(ok) {
+    if (ok) {
         statusConnected.classList.remove("hidden");
         statusWaiting.classList.add("hidden");
     } else {
@@ -257,137 +237,73 @@ function setStatus(connected) {
     }
 }
 
-// ============================
-// 2. LISTENER: LIVE /latest
-// ============================
+// LIVE LISTENER
 latestRef.on("value", (snap) => {
-    if (!snap.exists()) {
-        console.log("Waiting for first detection...");
-        setStatus(false);
-        return;
-    }
+    if (!snap.exists()) { setStatus(false); return; }
 
-    const data = snap.val();
-    console.log("Live update:", data);
+    const d = snap.val();
     setStatus(true);
 
-    if (data.image_b64) {
-        imgEl.src = "data:image/jpeg;base64," + data.image_b64;
-    }
+    if (d.image_b64) imgEl.src = "data:image/jpeg;base64," + d.image_b64;
 
-    labelEl.innerText = data.label || "-";
+    labelEl.textContent = d.label || "-";
+    confEl.textContent =
+        typeof d.confidence === "number"
+            ? (d.confidence * 100).toFixed(1) + "%"
+            : "-";
 
-    if (typeof data.confidence === "number") {
-        confEl.innerText = (data.confidence * 100).toFixed(1) + "%";
-    } else {
-        confEl.innerText = "-";
-    }
+    timeEl.textContent = new Date().toLocaleTimeString();
 
-    timeEl.innerText = new Date().toLocaleTimeString();
-
-    // Draw bounding box (assume koordinat dalam piksel QVGA 320x240)
-    if (typeof data.x === "number") {
-        bboxEl.style.left   = data.x + "px";
-        bboxEl.style.top    = data.y + "px";
-        bboxEl.style.width  = data.width  + "px";
-        bboxEl.style.height = data.height + "px";
+    if (typeof d.x === "number") {
+        bboxEl.style.left = d.x + "px";
+        bboxEl.style.top = d.y + "px";
+        bboxEl.style.width = d.width + "px";
+        bboxEl.style.height = d.height + "px";
     }
 });
 
-<div class="card history-card">
-    <div class="history-title">
-        History (latest detections)
-    </div>
-
-    <!-- Tombol Clear History -->
-    <button id="clearHistoryBtn"
-        style="
-            margin-bottom:10px;
-            padding:6px 12px;
-            background:#da3633;
-            border:1px solid #f85149;
-            color:white;
-            border-radius:6px;
-            cursor:pointer;
-            font-weight:600;">
-        Clear History
-    </button>
-
-    <div id="historyList"></div>
-</div>
-
-// ============================
-// 3. LISTENER: HISTORY
-// ============================
+// HISTORY LISTENER
 historyRef.on("value", (snap) => {
     historyListEl.innerHTML = "";
 
     if (!snap.exists()) {
-        const emptyMsg = document.createElement("div");
-        emptyMsg.className = "history-time";
-        emptyMsg.innerText = "No history yet.";
-        historyListEl.appendChild(emptyMsg);
+        historyListEl.innerHTML = "<div class='history-time'>No history yet.</div>";
         return;
     }
 
-    // RTDB snapshot.forEach berjalan ascending by key
     snap.forEach((childSnap) => {
         const d = childSnap.val();
-
-        // Kita fokus pada data yang punya image_b64
-        if (!d.image_b64) {
-            return; // skip entry tanpa gambar
-        }
+        if (!d.image_b64) return;
 
         const item = document.createElement("div");
         item.className = "history-item";
 
-        const thumb = document.createElement("img");
-        thumb.className = "history-thumb";
-        thumb.src = "data:image/jpeg;base64," + d.image_b64;
+        const img = document.createElement("img");
+        img.className = "history-thumb";
+        img.src = "data:image/jpeg;base64," + d.image_b64;
 
         const meta = document.createElement("div");
         meta.className = "history-meta";
 
-        const labelDiv = document.createElement("div");
-        labelDiv.className = "history-label";
-        labelDiv.innerText = d.label || "(no label)";
+        meta.innerHTML = `
+            <div class="history-label">${d.label || "-"}</div>
+            <div class="history-confidence">${d.confidence ? (d.confidence * 100).toFixed(1) + "%" : "-"}</div>
+            <div class="history-time">Click to preview</div>
+        `;
 
-        const confDiv = document.createElement("div");
-        confDiv.className = "history-confidence";
-        if (typeof d.confidence === "number") {
-            confDiv.innerText = "Conf: " + (d.confidence * 100).toFixed(1) + "%";
-        } else {
-            confDiv.innerText = "Conf: -";
-        }
-
-        const timeDiv = document.createElement("div");
-        timeDiv.className = "history-time";
-        timeDiv.innerText = "Click to preview";
-
-        meta.appendChild(labelDiv);
-        meta.appendChild(confDiv);
-        meta.appendChild(timeDiv);
-
-        item.appendChild(thumb);
+        item.appendChild(img);
         item.appendChild(meta);
 
-        // Klik history item → tampilkan di panel Live
         item.addEventListener("click", () => {
-            imgEl.src = thumb.src;
-
-            labelEl.innerText = d.label || "-";
-            if (typeof d.confidence === "number") {
-                confEl.innerText = (d.confidence * 100).toFixed(1) + "%";
-            } else {
-                confEl.innerText = "-";
-            }
-            timeEl.innerText = "from history";
+            imgEl.src = img.src;
+            labelEl.textContent = d.label || "-";
+            confEl.textContent = d.confidence ? (d.confidence * 100).toFixed(1) + "%" : "-";
+            timeEl.textContent = "from history";
 
             if (typeof d.x === "number") {
-                bboxEl.style.left   = d.x + "px";
-                bboxEl.style.top    = d.y + "px"; 
-                bboxEl.style.width  = d.width  + "px";
+                bboxEl.style.left = d.x + "px";
+                bboxEl.style.top = d.y + "px";
+                bboxEl.style.width = d.width + "px";
                 bboxEl.style.height = d.height + "px";
             }
         });
@@ -396,25 +312,18 @@ historyRef.on("value", (snap) => {
     });
 });
 
-// ============================
-// 4. CLEAR HISTORY BUTTON
-// ============================
+// CLEAR HISTORY
 document.getElementById("clearHistoryBtn").addEventListener("click", () => {
     if (!confirm("Hapus semua history?")) return;
 
     firebase.database().ref("detections/history")
         .remove()
         .then(() => {
+            historyListEl.innerHTML = "";
             console.log("History cleared.");
-            historyListEl.innerHTML = ""; // kosongkan UI
-        })
-        .catch(err => {
-            console.error("Error clearing history:", err);
         });
 });
-
 </script>
 
 </body>
 </html>
-
