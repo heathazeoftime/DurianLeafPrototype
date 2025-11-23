@@ -179,7 +179,7 @@ h1 {
 
 <body>
 
-<h1>📡 Durian Disease Monitoring</h1>
+<h1>Durian Disease Monitoring</h1>
 <div class="subtitle">Live detection + history of captured leaves</div>
 
 <div class="main-layout">
@@ -294,6 +294,28 @@ latestRef.on("value", (snap) => {
     }
 });
 
+<div class="card history-card">
+    <div class="history-title">
+        History (latest detections)
+    </div>
+
+    <!-- Tombol Clear History -->
+    <button id="clearHistoryBtn"
+        style="
+            margin-bottom:10px;
+            padding:6px 12px;
+            background:#da3633;
+            border:1px solid #f85149;
+            color:white;
+            border-radius:6px;
+            cursor:pointer;
+            font-weight:600;">
+        Clear History
+    </button>
+
+    <div id="historyList"></div>
+</div>
+
 // ============================
 // 3. LISTENER: HISTORY
 // ============================
@@ -373,7 +395,26 @@ historyRef.on("value", (snap) => {
         historyListEl.appendChild(item);
     });
 });
+
+// ============================
+// 4. CLEAR HISTORY BUTTON
+// ============================
+document.getElementById("clearHistoryBtn").addEventListener("click", () => {
+    if (!confirm("Hapus semua history?")) return;
+
+    firebase.database().ref("detections/history")
+        .remove()
+        .then(() => {
+            console.log("History cleared.");
+            historyListEl.innerHTML = ""; // kosongkan UI
+        })
+        .catch(err => {
+            console.error("Error clearing history:", err);
+        });
+});
+
 </script>
 
 </body>
 </html>
+
