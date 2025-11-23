@@ -73,22 +73,25 @@ h1 { font-size: 28px; font-weight: 600; color: #58a6ff; }
 .conf-red    { background:#da3633; padding:2px 8px; border-radius:6px; }
 
 /* HISTORY */
+#historyList {
+    max-height: 400px;          /* <= batas tinggi box */
+    overflow-y: auto;           /* <= scroll di dalam box */
+    padding-right: 5px;
+}
+
 .history-item {
     display:flex; padding:6px;
     border:1px solid #30363d; border-radius:8px;
     margin-bottom:6px; cursor:pointer;
 }
+.history-item:hover { background:#21262d; transform:translateY(-1px); }
 .history-thumb { width:64px; height:48px; object-fit:cover; margin-right:8px; }
 
-#clearHistoryBtn {
+#clearHistoryBtn, #resetPieBtn {
     background:#da3633; border:1px solid #f85149;
     padding:6px 12px; color:#fff; border-radius:6px;
     cursor:pointer; font-weight:600;
-}
-#resetPieBtn {
-    background:#da3633; border:1px solid #f85149;
-    padding:6px 12px; color:#fff; border-radius:6px;
-    cursor:pointer; font-weight:600;
+    margin-bottom: 10px;
 }
 </style>
 </head>
@@ -213,7 +216,7 @@ const confidenceChart = new Chart(confCtx,{
 });
 
 // =====================================
-// PIE CHART + RESET BUTTON
+// PIE CHART
 // =====================================
 let diseaseCounts = {};
 
@@ -232,8 +235,9 @@ const pieChart = new Chart(pieCtx,{
     options:{ plugins:{ legend:{ labels:{ color:"#e6edf3" }}} }
 });
 
+// RESET PIE BUTTON
 document.getElementById("resetPieBtn").onclick=()=>{
-    if(!confirm("Reset pie chart counts? (tidak mereset Firebase)")) return;
+    if(!confirm("Reset pie chart counts?")) return;
     diseaseCounts = {};
     pieChart.data.labels = [];
     pieChart.data.datasets[0].data = [];
@@ -241,14 +245,13 @@ document.getElementById("resetPieBtn").onclick=()=>{
 };
 
 // =====================================
-// HISTORY LISTENER: update UI + charts
+// HISTORY LISTENER
 // =====================================
 historyRef.on("value", snap=>{
     historyListEl.innerHTML="";
-
     const timeLabels=[];
     const confValues=[];
-    diseaseCounts = {};
+    diseaseCounts={};
 
     if(!snap.exists()) return;
 
@@ -272,23 +275,21 @@ historyRef.on("value", snap=>{
         item.append(img,meta);
         historyListEl.appendChild(item);
 
-        // time series
+        // line chart update
         timeLabels.push(new Date(d.timestamp).toLocaleTimeString());
         confValues.push((d.confidence*100).toFixed(1));
 
-        // pie count
-        if(d.label)
-            diseaseCounts[d.label] = (d.label in diseaseCounts)
-                ? diseaseCounts[d.label]+1
-                : 1;
+        // pie chart count
+        diseaseCounts[d.label] = (d.label in diseaseCounts)
+            ? diseaseCounts[d.label]+1
+            : 1;
     });
 
-    // update line chart
+    // update charts
     confidenceChart.data.labels = timeLabels;
     confidenceChart.data.datasets[0].data = confValues;
     confidenceChart.update();
 
-    // update pie chart
     pieChart.data.labels = Object.keys(diseaseCounts);
     pieChart.data.datasets[0].data = Object.values(diseaseCounts);
     pieChart.update();
