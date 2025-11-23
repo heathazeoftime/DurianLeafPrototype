@@ -30,8 +30,11 @@ h1 { font-size: 28px; font-weight: 600; color: #58a6ff; }
 .subtitle { font-size: 14px; color: #8b949e; }
 
 .main-layout {
-    display: flex; gap: 20px; margin-top: 20px;
-    justify-content: center; flex-wrap: wrap;
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 /* CARD */
@@ -82,6 +85,11 @@ h1 { font-size: 28px; font-weight: 600; color: #58a6ff; }
     padding:6px 12px; color:#fff; border-radius:6px;
     cursor:pointer; font-weight:600;
 }
+#resetPieBtn {
+    background:#da3633; border:1px solid #f85149;
+    padding:6px 12px; color:#fff; border-radius:6px;
+    cursor:pointer; font-weight:600;
+}
 </style>
 </head>
 
@@ -126,10 +134,13 @@ h1 { font-size: 28px; font-weight: 600; color: #58a6ff; }
     <canvas id="confidenceChart"></canvas>
 </div>
 
-<!-- PIE CHART (NEW) -->
-<div class="card" style="width:760px; margin-top:20px;">
-    <h3>Disease Distribution</h3>
-    <canvas id="pieChart"></canvas>
+<!-- PIE CHART -->
+<div class="card" style="width:480px; margin-top:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0;">Disease Distribution</h3>
+        <button id="resetPieBtn">Reset Pie</button>
+    </div>
+    <canvas id="pieChart" width="400" height="280"></canvas>
 </div>
 
 <script>
@@ -143,7 +154,7 @@ firebase.initializeApp({
 const latestRef  = firebase.database().ref("detections/latest");
 const historyRef = firebase.database().ref("detections/history").limitToLast(20);
 
-// UI elems
+// UI
 const imgEl = document.getElementById("cameraImage");
 const bboxEl = document.getElementById("bbox");
 const confEl = document.getElementById("confidence");
@@ -185,24 +196,27 @@ document.getElementById("clearHistoryBtn").onclick=()=>{
         firebase.database().ref("detections/history").remove();
 };
 
-// ============================
+// =====================================
 // CONFIDENCE TIME SERIES CHART
-// ============================
+// =====================================
 const confCtx = document.getElementById("confidenceChart").getContext("2d");
-
 const confidenceChart = new Chart(confCtx,{
     type:"line",
     data:{ labels:[], datasets:[{
         label:"Confidence (%)",
         data:[],
         borderColor:"#58a6ff",
-        backgroundColor:"rgba(88,166,255,0.25)"
+        backgroundColor:"rgba(88,166,255,0.25)",
+        borderWidth:2,
+        tension:0.22
     }]}
 });
 
-// ============================
-// PIE CHART (NEW)
-// ============================
+// =====================================
+// PIE CHART + RESET BUTTON
+// =====================================
+let diseaseCounts = {};
+
 const pieCtx = document.getElementById("pieChart").getContext("2d");
 const pieChart = new Chart(pieCtx,{
     type:"pie",
@@ -210,33 +224,31 @@ const pieChart = new Chart(pieCtx,{
         labels:[],
         datasets:[{
             data:[],
-            backgroundColor:["#238636","#1f6feb","#da3633","#d29922","#8b949e"]
+            backgroundColor:["#58a6ff","#1f6feb","#da3633","#d29922","#8b949e"],
+            borderColor:"#0d1117",
+            borderWidth:2
         }]
-    }
+    },
+    options:{ plugins:{ legend:{ labels:{ color:"#e6edf3" }}} }
 });
 
-// UPDATE PIE DATA
-function updatePieChart(snapshot){
-    const counts={};
-
-    snapshot.forEach(child=>{
-        const d = child.val();
-        if(d.label) counts[d.label]=(counts[d.label]||0)+1;
-    });
-
-    pieChart.data.labels = Object.keys(counts);
-    pieChart.data.datasets[0].data = Object.values(counts);
+document.getElementById("resetPieBtn").onclick=()=>{
+    if(!confirm("Reset pie chart counts? (tidak mereset Firebase)")) return;
+    diseaseCounts = {};
+    pieChart.data.labels = [];
+    pieChart.data.datasets[0].data = [];
     pieChart.update();
-}
+};
 
-// ============================
-// HISTORY LISTENER -> update UI + CHARTS
-// ============================
+// =====================================
+// HISTORY LISTENER: update UI + charts
+// =====================================
 historyRef.on("value", snap=>{
     historyListEl.innerHTML="";
 
     const timeLabels=[];
     const confValues=[];
+    diseaseCounts = {};
 
     if(!snap.exists()) return;
 
@@ -260,9 +272,15 @@ historyRef.on("value", snap=>{
         item.append(img,meta);
         historyListEl.appendChild(item);
 
-        // time series data
+        // time series
         timeLabels.push(new Date(d.timestamp).toLocaleTimeString());
         confValues.push((d.confidence*100).toFixed(1));
+
+        // pie count
+        if(d.label)
+            diseaseCounts[d.label] = (d.label in diseaseCounts)
+                ? diseaseCounts[d.label]+1
+                : 1;
     });
 
     // update line chart
@@ -271,7 +289,9 @@ historyRef.on("value", snap=>{
     confidenceChart.update();
 
     // update pie chart
-    updatePieChart(snap);
+    pieChart.data.labels = Object.keys(diseaseCounts);
+    pieChart.data.datasets[0].data = Object.values(diseaseCounts);
+    pieChart.update();
 });
 </script>
 
